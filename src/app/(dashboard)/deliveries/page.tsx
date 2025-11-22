@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -29,6 +30,7 @@ interface Delivery {
 }
 
 export default function DeliveriesPage() {
+  const router = useRouter();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,10 +102,38 @@ export default function DeliveriesPage() {
   };
 
   const handleValidate = async (id: number) => {
-    if (!confirm("Validate this delivery? This will decrease stock levels.")) return;
-
     try {
       const token = localStorage.getItem("bearer_token");
+      if (!token) {
+        toast.error('You must be logged in to validate deliveries');
+        return;
+      }
+
+      // Fetch delivery details to ensure items exist
+      const detailRes = await fetch(`/api/deliveries/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!detailRes.ok) {
+        if (detailRes.status === 404) {
+          toast.error('Delivery not found');
+          fetchDeliveries();
+          return;
+        }
+        const err = await detailRes.json().catch(() => ({}));
+        throw new Error(err?.error || `Failed to fetch delivery: ${detailRes.status}`);
+      }
+
+      const detail = await detailRes.json();
+      if (!detail.items || detail.items.length === 0) {
+        toast.error('No items found for this delivery. Please add items before validation.');
+        // navigate to delivery detail where items can be inspected/added
+        router.push(`/deliveries/${id}`);
+        return;
+      }
+
+      if (!confirm("Validate this delivery? This will decrease stock levels.")) return;
+
       const response = await fetch(`/api/deliveries/${id}/validate`, {
         method: "POST",
         headers: { 
