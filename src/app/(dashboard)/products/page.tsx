@@ -29,11 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, Package, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Package, AlertTriangle, Loader2, Grid, List, Eye, Upload, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Product {
   id: number;
@@ -47,11 +48,323 @@ interface Product {
   sellingPrice: number;
   description: string | null;
   isActive: boolean;
+  image?: string;
 }
 
 interface Category {
   id: number;
   name: string;
+}
+
+// AddProductModal Component
+function AddProductModal({ 
+  onClose, 
+  editingProduct, 
+  categories, 
+  onSave 
+}: { 
+  onClose: () => void;
+  editingProduct: Product | null;
+  categories: Category[];
+  onSave: (product: Partial<Product>) => Promise<void>;
+}) {
+  const [formData, setFormData] = useState({
+    sku: editingProduct?.sku || '',
+    name: editingProduct?.name || '',
+    categoryId: editingProduct?.categoryId?.toString() || 'none',
+    unitOfMeasure: editingProduct?.unitOfMeasure || '',
+    currentStock: editingProduct?.currentStock?.toString() || '0',
+    reorderLevel: editingProduct?.reorderLevel?.toString() || '0',
+    costPrice: editingProduct?.costPrice?.toString() || '0',
+    sellingPrice: editingProduct?.sellingPrice?.toString() || '0',
+    description: editingProduct?.description || '',
+    isActive: editingProduct?.isActive !== undefined ? editingProduct.isActive : true,
+    image: editingProduct?.image || '',
+  });
+  
+  const [isSaving, setIsSaving] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(editingProduct?.image || null);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+        setFormData({ ...formData, image: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    
+    try {
+      await onSave({
+        ...formData,
+        categoryId: formData.categoryId === 'none' ? null : parseInt(formData.categoryId),
+        currentStock: parseInt(formData.currentStock),
+        reorderLevel: parseInt(formData.reorderLevel),
+        costPrice: parseFloat(formData.costPrice),
+        sellingPrice: parseFloat(formData.sellingPrice),
+      });
+      
+      onClose();
+    } catch (error) {
+      console.error("Error saving product:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black bg-opacity-50"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative bg-background rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-lg font-semibold">
+            {editingProduct ? "Edit Product" : "Add New Product"}
+          </h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6">
+          {/* Product Image Upload */}
+          <div className="mb-6">
+            <Label htmlFor="image" className="block text-sm font-medium mb-2">
+              Product Image
+            </Label>
+            <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer">
+              {imagePreview ? (
+                <div className="relative">
+                  <img 
+                    src={imagePreview} 
+                    alt="Product preview" 
+                    className="h-32 w-32 mx-auto object-cover rounded-md" 
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => {
+                      setImagePreview(null);
+                      setFormData({ ...formData, image: '' });
+                    }}
+                  >
+                    Remove Image
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Click to upload or drag and drop
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    PNG, JPG up to 5MB
+                  </p>
+                  <Input
+                    id="image"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => document.getElementById('image')?.click()}
+                  >
+                    Select Image
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Form Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <Label htmlFor="sku" className="block text-sm font-medium mb-2">
+                SKU <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="sku"
+                type="text"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                placeholder="e.g., ELEC-001"
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="name" className="block text-sm font-medium mb-2">
+                Product Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., MacBook Pro 14"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <Label htmlFor="category" className="block text-sm font-medium mb-2">
+                Category
+              </Label>
+              <Select
+                value={formData.categoryId}
+                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No category</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id.toString()}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="unitOfMeasure" className="block text-sm font-medium mb-2">
+                Unit of Measure <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="unitOfMeasure"
+                type="text"
+                value={formData.unitOfMeasure}
+                onChange={(e) => setFormData({ ...formData, unitOfMeasure: e.target.value })}
+                placeholder="e.g., kg, units, liters"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <Label htmlFor="currentStock" className="block text-sm font-medium mb-2">
+                Current Stock <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="currentStock"
+                type="number"
+                value={formData.currentStock}
+                onChange={(e) => setFormData({ ...formData, currentStock: e.target.value })}
+                placeholder="0"
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="reorderLevel" className="block text-sm font-medium mb-2">
+                Reorder Level <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="reorderLevel"
+                type="number"
+                value={formData.reorderLevel}
+                onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
+                placeholder="0"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <Label htmlFor="costPrice" className="block text-sm font-medium mb-2">
+                Cost Price
+              </Label>
+              <Input
+                id="costPrice"
+                type="number"
+                step="0.01"
+                value={formData.costPrice}
+                onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="sellingPrice" className="block text-sm font-medium mb-2">
+                Selling Price <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="sellingPrice"
+                type="number"
+                step="0.01"
+                value={formData.sellingPrice}
+                onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
+                placeholder="0.00"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <Label htmlFor="description" className="block text-sm font-medium mb-2">
+              Description
+            </Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Enter product description..."
+              rows={4}
+            />
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSaving}
+            >
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {editingProduct ? "Update Product" : "Add Product"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 export default function ProductsPage() {
@@ -60,28 +373,17 @@ export default function ProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterStockStatus, setFilterStockStatus] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("name");
   const [filterLowStock, setFilterLowStock] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const [formData, setFormData] = useState({
-    name: "",
-    sku: "",
-    categoryId: "",
-    unitOfMeasure: "",
-    reorderLevel: "0",
-    currentStock: "0",
-    costPrice: "0",
-    sellingPrice: "0",
-    description: "",
-    isActive: true,
-  });
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
 
   useEffect(() => {
     fetchProducts();
     fetchCategories();
-  }, [searchTerm, filterCategory, filterLowStock]);
+  }, [searchTerm, filterCategory, filterStockStatus, sortBy, filterLowStock]);
 
   const fetchProducts = async () => {
     try {
@@ -90,7 +392,9 @@ export default function ProductsPage() {
       
       if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
       if (filterCategory !== "all") url += `&category=${filterCategory}`;
+      if (filterStockStatus !== "all") url += `&stockStatus=${filterStockStatus}`;
       if (filterLowStock) url += `&lowStock=true`;
+      if (sortBy) url += `&sortBy=${sortBy}`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -121,21 +425,10 @@ export default function ProductsPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-
+  const handleSaveProduct = async (productData: Partial<Product>) => {
     try {
       const token = localStorage.getItem("bearer_token");
-      const payload = {
-        ...formData,
-        categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
-        reorderLevel: parseInt(formData.reorderLevel),
-        currentStock: parseInt(formData.currentStock),
-        costPrice: parseFloat(formData.costPrice),
-        sellingPrice: parseFloat(formData.sellingPrice),
-      };
-
+      
       const url = editingProduct
         ? `/api/products/${editingProduct.id}`
         : "/api/products";
@@ -147,7 +440,7 @@ export default function ProductsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(productData),
       });
 
       if (!response.ok) {
@@ -158,31 +451,18 @@ export default function ProductsPage() {
       toast.success(
         editingProduct ? "Product updated successfully" : "Product created successfully"
       );
-      setIsDialogOpen(false);
-      resetForm();
+      
       fetchProducts();
+      setEditingProduct(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save product");
-    } finally {
-      setIsSaving(false);
+      throw error;
     }
   };
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
-    setFormData({
-      name: product.name,
-      sku: product.sku,
-      categoryId: product.categoryId?.toString() || "",
-      unitOfMeasure: product.unitOfMeasure,
-      reorderLevel: product.reorderLevel.toString(),
-      currentStock: product.currentStock.toString(),
-      costPrice: product.costPrice.toString(),
-      sellingPrice: product.sellingPrice.toString(),
-      description: product.description || "",
-      isActive: product.isActive,
-    });
-    setIsDialogOpen(true);
+    setIsAddModalOpen(true);
   };
 
   const handleDelete = async (id: number) => {
@@ -204,23 +484,46 @@ export default function ProductsPage() {
     }
   };
 
-  const resetForm = () => {
-    setEditingProduct(null);
-    setFormData({
-      name: "",
-      sku: "",
-      categoryId: "",
-      unitOfMeasure: "",
-      reorderLevel: "0",
-      currentStock: "0",
-      costPrice: "0",
-      sellingPrice: "0",
-      description: "",
-      isActive: true,
-    });
+  const isLowStock = (product: Product) => product.currentStock <= product.reorderLevel;
+  const getStockStatus = (product: Product) => {
+    if (product.currentStock === 0) return "Out of Stock";
+    if (isLowStock(product)) return "Low Stock";
+    return "In Stock";
   };
 
-  const isLowStock = (product: Product) => product.currentStock <= product.reorderLevel;
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'In Stock':
+        return "default";
+      case 'Low Stock':
+        return "secondary";
+      case 'Out of Stock':
+        return "destructive";
+      default:
+        return "outline";
+    }
+  };
+
+  const getStockBarColor = (stock: number, reorderLevel: number) => {
+    if (stock === 0) return "bg-red-500";
+    if (stock <= reorderLevel) return "bg-amber-500";
+    return "bg-green-500";
+  };
+
+  const getStockPercentage = (stock: number, reorderLevel: number) => {
+    const maxStock = reorderLevel * 3;
+    return Math.min((stock / maxStock) * 100, 100);
+  };
+
+  const openAddModal = () => {
+    setEditingProduct(null);
+    setIsAddModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsAddModalOpen(false);
+    setEditingProduct(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -229,142 +532,30 @@ export default function ProductsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Products</h1>
           <p className="text-muted-foreground">Manage your product catalog and inventory</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Product
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center bg-background border rounded-md p-1">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+            >
+              <Grid className="h-4 w-4" />
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingProduct ? "Edit Product" : "Create New Product"}</DialogTitle>
-              <DialogDescription>
-                {editingProduct ? "Update product details" : "Add a new product to your inventory"}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Product Name *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU *</Label>
-                  <Input
-                    id="sku"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={formData.categoryId}
-                    onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">No category</SelectItem>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id.toString()}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unitOfMeasure">Unit of Measure *</Label>
-                  <Input
-                    id="unitOfMeasure"
-                    value={formData.unitOfMeasure}
-                    onChange={(e) => setFormData({ ...formData, unitOfMeasure: e.target.value })}
-                    placeholder="e.g., kg, units, liters"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="currentStock">Current Stock</Label>
-                  <Input
-                    id="currentStock"
-                    type="number"
-                    value={formData.currentStock}
-                    onChange={(e) => setFormData({ ...formData, currentStock: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reorderLevel">Reorder Level</Label>
-                  <Input
-                    id="reorderLevel"
-                    type="number"
-                    value={formData.reorderLevel}
-                    onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="costPrice">Cost Price</Label>
-                  <Input
-                    id="costPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.costPrice}
-                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sellingPrice">Selling Price</Label>
-                  <Input
-                    id="sellingPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.sellingPrice}
-                    onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                />
-              </div>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingProduct ? "Update" : "Create"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+            <Button
+              variant={viewMode === 'table' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('table')}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <Button onClick={openAddModal}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Product
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -393,6 +584,30 @@ export default function ProductsPage() {
                     {cat.name}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterStockStatus} onValueChange={setFilterStockStatus}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="All Stock Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Stock Status</SelectItem>
+                <SelectItem value="inStock">In Stock</SelectItem>
+                <SelectItem value="lowStock">Low Stock</SelectItem>
+                <SelectItem value="outOfStock">Out of Stock</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name (A-Z)</SelectItem>
+                <SelectItem value="nameDesc">Name (Z-A)</SelectItem>
+                <SelectItem value="stockHigh">Stock (High to Low)</SelectItem>
+                <SelectItem value="stockLow">Stock (Low to High)</SelectItem>
+                <SelectItem value="priceHigh">Price (High to Low)</SelectItem>
+                <SelectItem value="priceLow">Price (Low to High)</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -424,13 +639,15 @@ export default function ProductsPage() {
                   : "Get started by creating your first product"}
               </p>
             </div>
-          ) : (
+          ) : viewMode === 'table' ? (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product</TableHead>
                   <TableHead>SKU</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Stock</TableHead>
+                  <TableHead>Reorder Level</TableHead>
                   <TableHead>Unit</TableHead>
                   <TableHead>Cost</TableHead>
                   <TableHead>Price</TableHead>
@@ -441,8 +658,11 @@ export default function ProductsPage() {
               <TableBody>
                 {products.map((product) => (
                   <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>{product.sku}</TableCell>
+                    <TableCell className="font-medium">{product.sku}</TableCell>
+                    <TableCell>{product.name}</TableCell>
+                    <TableCell>
+                      {categories.find(c => c.id === product.categoryId)?.name || "No category"}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span>{product.currentStock}</span>
@@ -451,15 +671,14 @@ export default function ProductsPage() {
                         )}
                       </div>
                     </TableCell>
+                    <TableCell>{product.reorderLevel}</TableCell>
                     <TableCell>{product.unitOfMeasure}</TableCell>
                     <TableCell>${product.costPrice}</TableCell>
                     <TableCell>${product.sellingPrice}</TableCell>
                     <TableCell>
-                      {isLowStock(product) ? (
-                        <Badge variant="destructive">Low Stock</Badge>
-                      ) : (
-                        <Badge variant="outline">In Stock</Badge>
-                      )}
+                      <Badge variant={getStatusColor(getStockStatus(product))}>
+                        {getStockStatus(product)}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -483,9 +702,84 @@ export default function ProductsPage() {
                 ))}
               </TableBody>
             </Table>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
+              {products.map((product) => (
+                <Card key={product.id} className="overflow-hidden">
+                  <div className="h-48 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 flex items-center justify-center">
+                    {product.image ? (
+                      <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-16 w-16 text-blue-500/50" />
+                    )}
+                  </div>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground">{product.sku}</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
+                        {categories.find(c => c.id === product.categoryId)?.name || "No category"}
+                      </span>
+                    </div>
+                    <h3 className="font-medium mb-3 line-clamp-2 min-h-[3rem]">{product.name}</h3>
+                    <div className="mb-3">
+                      <Badge variant={getStatusColor(getStockStatus(product))}>
+                        {getStockStatus(product)}
+                      </Badge>
+                    </div>
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                        <span>Stock Level</span>
+                        <span>{product.currentStock} units</span>
+                      </div>
+                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${getStockBarColor(
+                            product.currentStock,
+                            product.reorderLevel
+                          )}`}
+                          style={{ width: `${getStockPercentage(product.currentStock, product.reorderLevel)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-sm text-muted-foreground">Price</span>
+                      <span>${product.sellingPrice}</span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-3 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleEdit(product)}
+                      >
+                        <Pencil className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(product.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Add/Edit Product Modal */}
+      {isAddModalOpen && (
+        <AddProductModal
+          onClose={closeModal}
+          editingProduct={editingProduct}
+          categories={categories}
+          onSave={handleSaveProduct}
+        />
+      )}
     </div>
   );
 }
