@@ -34,7 +34,7 @@ export default function NewDeliveryPage() {
   useEffect(() => {
     // Try to fetch available warehouses to populate select
     const token = typeof window !== 'undefined' ? localStorage.getItem('bearer_token') : null;
-    fetch('/api/warehouses?limit=100', {
+    fetch('/api/warehouses?limit=1000', {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     })
       .then((res) => res.ok ? res.json() : Promise.reject(res))
@@ -137,7 +137,7 @@ export default function NewDeliveryPage() {
         if (it.productId) {
           match = { id: it.productId, sku: it.sku };
         } else {
-          const prodRes = await fetch(`/api/products?search=${encodeURIComponent(it.sku)}&limit=10`, {
+          const prodRes = await fetch(`/api/products?search=${encodeURIComponent(it.sku)}`, {
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           });
 
@@ -223,7 +223,7 @@ export default function NewDeliveryPage() {
     }
     try {
       const token = localStorage.getItem('bearer_token');
-      const res = await fetch(`/api/products?search=${encodeURIComponent(query)}&limit=10`, {
+      const res = await fetch(`/api/products?search=${encodeURIComponent(query)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!res.ok) return;
@@ -296,27 +296,39 @@ export default function NewDeliveryPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Delivery Number</label>
-          <Input value={deliveryNumber} onChange={(e) => setDeliveryNumber(e.target.value)} placeholder="e.g. DEL-0001" />
+          <Input 
+            value={deliveryNumber} 
+            readOnly
+            className="bg-muted cursor-not-allowed"
+            placeholder="e.g. DEL-0001" 
+          />
+          <p className="text-xs text-muted-foreground mt-1">Auto-generated delivery number.</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Warehouse</label>
+          <label className="block text-sm font-medium mb-1">Warehouse <span className="text-destructive">*</span></label>
           <select
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
             className="w-full rounded-md border px-3 py-2 text-sm"
+            required
           >
             <option value="">Select a warehouse</option>
             {warehouses.map((w) => (
               <option key={w.id} value={String(w.id)}>{w.name}</option>
             ))}
           </select>
-          <p className="text-xs text-muted-foreground mt-1">If warehouses do not appear, ensure you have permission or refresh.</p>
+          <p className="text-xs text-muted-foreground mt-1">Warehouse is required. If none appear, ensure you have permission or refresh.</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Customer Name</label>
-          <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name" />
+          <label className="block text-sm font-medium mb-1">Customer Name <span className="text-destructive">*</span></label>
+          <Input 
+            value={customerName} 
+            onChange={(e) => setCustomerName(e.target.value)} 
+            placeholder="Customer name" 
+            required
+          />
         </div>
 
         <div>
@@ -325,7 +337,7 @@ export default function NewDeliveryPage() {
         </div>
 
         <div>
-          <h3 className="text-sm font-medium">Items</h3>
+          <h3 className="text-sm font-medium">Items <span className="text-destructive">*</span></h3>
           <div className="space-y-2">
             {items.map((it, idx) => (
               <div key={idx} className="flex gap-2 items-start relative">
@@ -339,13 +351,6 @@ export default function NewDeliveryPage() {
                       fetchSuggestions(v, idx);
                     }}
                   />
-                  {/* Show remaining stock prominently when availableQty is known */}
-                  <div className="text-sm font-medium mt-1">
-                    Remaining: {it.availableQty != null ? String(it.availableQty) : '—'}
-                    {it.totalQty != null && (
-                      <span className="text-xs text-muted-foreground ml-2">(Total: {it.totalQty})</span>
-                    )}
-                  </div>
                   {suggestions[idx] && suggestions[idx].length > 0 && (
                     <div className="absolute z-10 bg-white border rounded-md mt-1 w-full shadow max-h-48 overflow-auto">
                       {suggestions[idx].map((p: any) => (
@@ -361,19 +366,17 @@ export default function NewDeliveryPage() {
                     </div>
                   )}
                 </div>
-
                 <div className="w-24">
                   <Input
                     placeholder="Qty"
                     value={it.quantity}
                     onChange={(e) => {
                       const v = e.target.value;
-                      // allow only numbers
                       updateItem(idx, { quantity: v });
                       const parsed = parseInt(v);
-                      if (!isNaN(parsed) && it.availableQty != null) {
-                        if (parsed > it.availableQty) {
-                          updateItem(idx, { error: `Requested qty (${parsed}) exceeds available (${it.availableQty})` });
+                      if (!isNaN(parsed) && it.totalQty != null) {
+                        if (parsed > it.totalQty) {
+                          updateItem(idx, { error: `Requested qty (${parsed}) exceeds available (${it.totalQty})` });
                         } else {
                           updateItem(idx, { error: null });
                         }
@@ -385,19 +388,15 @@ export default function NewDeliveryPage() {
                   />
                   {it.error && <div className="text-xs text-destructive mt-1">{it.error}</div>}
                 </div>
-
                 <div className="w-32">
                   <div className="text-sm">Price: <span className="font-medium">{it.unitPrice != null && it.unitPrice !== '' ? it.unitPrice : '—'}</span></div>
                 </div>
-
                 <div className="w-32">
-                  <div className="text-sm">Available: <span className="font-medium">{it.availableQty != null ? String(it.availableQty) : '—'}</span></div>
+                  <div className="text-sm">In Stock: <span className="font-medium">{it.totalQty != null ? String(it.totalQty) : '—'}</span></div>
                 </div>
-
                 <div className="w-36">
                   <div className="text-sm">Line total: <span className="font-medium">{(Number(it.unitPrice || 0) * Number(it.quantity || 0)).toFixed(2)}</span></div>
                 </div>
-
                 <Button variant="ghost" onClick={() => removeItem(idx)}>Remove</Button>
               </div>
             ))}
