@@ -11,8 +11,16 @@ export default function NewAdjustmentPage() {
   const router = useRouter();
   const [adjustmentNumber, setAdjustmentNumber] = useState("");
   const [warehouseId, setWarehouseId] = useState<string | undefined>(undefined);
-  const [productSku, setProductSku] = useState<string>("");
-  const [countedQuantity, setCountedQuantity] = useState<string>("");
+  // selected product id (string), "new" indicates creating a new product
+  const [productId, setProductId] = useState<string>("");
+  // searchable query for product search
+  const [productQuery, setProductQuery] = useState<string>("");
+  // optional new product name when user chooses to create one
+  const [newProductName, setNewProductName] = useState<string>("");
+  // separate increase/reduce quantities
+  const [increaseBy, setIncreaseBy] = useState<number>(0);
+  const [decreaseBy, setDecreaseBy] = useState<number>(0);
+  const [products, setProducts] = useState<Array<{ id: number; name: string; sku?: string }>>([]);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [warehouses, setWarehouses] = useState<Array<{ id: number; name: string }>>([]);
@@ -34,6 +42,7 @@ export default function NewAdjustmentPage() {
         // ignore
       });
 
+    // fetch next adjustment number
     fetch('/api/adjustments/next-number')
       .then((res) => res.ok ? res.json() : Promise.reject(res))
       .then((data) => {
@@ -42,6 +51,21 @@ export default function NewAdjustmentPage() {
       .catch(() => {
         const fallback = `ADJ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
         setAdjustmentNumber(fallback);
+      });
+
+    // fetch products for dropdown
+    fetch('/api/products?limit=100', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+      .then((res) => res.ok ? res.json() : Promise.reject(res))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setProducts(data.map((p: any) => ({ id: p.id, name: p.name, sku: p.sku })));
+          setProductId(String(data[0].id));
+        }
+      })
+      .catch(() => {
+        // ignore product loading errors — dropdown will be empty
       });
   }, []);
 
@@ -56,38 +80,27 @@ export default function NewAdjustmentPage() {
         return;
       }
 
-      if (!adjustmentNumber || !warehouseId || !productSku || !countedQuantity) {
+      // validate required fields
+      if (!adjustmentNumber || !warehouseId || !productId) {
         toast.error('Please fill required fields');
         return;
       }
-
-      // Resolve SKU -> productId
-      const prodRes = await fetch(`/api/products?search=${encodeURIComponent(productSku)}&limit=10`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-
-      if (!prodRes.ok) {
-        toast.error('Failed to lookup product SKU');
+      if (increaseBy <= 0 && decreaseBy <= 0) {
+        toast.error('Provide an increase or decrease quantity');
         return;
       }
 
-      const prodData = await prodRes.json();
-      const match = Array.isArray(prodData)
-        ? prodData.find((p: any) => String(p.sku).toLowerCase() === productSku.trim().toLowerCase())
-        : null;
-
-      if (!match) {
-        toast.error(`Product with SKU "${productSku}" not found`);
-        return;
-      }
-
-      const body = {
+      const body: any = {
         adjustmentNumber: adjustmentNumber.trim(),
         warehouseId: parseInt(warehouseId),
-        productId: parseInt(match.id),
-        countedQuantity: parseInt(countedQuantity),
+        productId: productId === "new" ? null : parseInt(productId),
+        increase_by: Number(increaseBy),
+        decrease_by: Number(decreaseBy),
         notes: notes.trim() || null,
       };
+      if (productId === "new") {
+        body.new_product_name = newProductName.trim() || productQuery.trim();
+      }
 
       const res = await fetch('/api/adjustments', {
         method: 'POST',
@@ -119,7 +132,8 @@ export default function NewAdjustmentPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Adjustment Number</label>
-          <Input value={adjustmentNumber} onChange={(e) => setAdjustmentNumber(e.target.value)} />
+          {/* read-only adjustment number */}
+          <Input value={adjustmentNumber} readOnly />
         </div>
 
         <div>
@@ -137,13 +151,132 @@ export default function NewAdjustmentPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Product SKU</label>
-          <Input value={productSku} onChange={(e) => setProductSku(e.target.value)} placeholder="Enter product SKU" />
+          <label className="block text-sm font-medium mb-1">Product</label>
+          <div className="relative">
+            <input
+              type="text"
+              value={productQuery}
+              onChange={(e) => {
+                setProductQuery(e.target.value);
+                // clear "new product" name if typing
+                if (productId === "new") setNewProductName("");
+              }}
+              placeholder="Search product by name or SKU"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              onFocus={() => { /* show suggestions */ }}
+            />
+            {/* suggestions dropdown */}
+            {productQuery.trim().length > 0 && (
+              <ul className="absolute z-20 bg-white border rounded mt-1 w-full max-h-48 overflow-auto text-sm">
+                {products
+                  .filter(p =>
+                    p.name.toLowerCase().includes(productQuery.toLowerCase()) ||
+                    (p.sku && p.sku.toLowerCase().includes(productQuery.toLowerCase()))
+                  )
+                  .slice(0, 50)
+                  .map(p => (
+                    <li
+                      key={p.id}
+                      onClick={() => {
+                        setProductId(String(p.id));
+                        setProductQuery(`${p.name}${p.sku ? ` (${p.sku})` : ""}`);
+                      }}
+                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                    >
+                      {p.name}{p.sku ? ` (${p.sku})` : ""}
+                    </li>
+                  ))
+                }
+                <li
+                  onClick={() => {
+                    setProductId("new");
+                    setNewProductName(productQuery);
+                    setProductQuery(productQuery);
+                  }}
+                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-t"
+                >
+                  + Add new product "{productQuery}"
+                </li>
+              </ul>
+            )}
+            {/* show selected product summary if selected from list */}
+            {productId && productId !== "new" && !productQuery && (
+              <div className="mt-1 text-sm text-muted-foreground">
+                Selected product ID: {productId}
+              </div>
+            )}
+            {productId === "new" && (
+              <div className="mt-2">
+                <label className="block text-xs font-medium mb-1">New product name</label>
+                <input
+                  type="text"
+                  value={newProductName}
+                  onChange={(e) => setNewProductName(e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Counted Quantity</label>
-          <Input value={countedQuantity} onChange={(e) => setCountedQuantity(e.target.value)} placeholder="e.g. 10" />
+          <label className="block text-sm font-medium mb-1">Increase / Reduce Quantity</label>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Increase By</div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIncreaseBy((v) => Math.max(0, v - 1))}
+                  className="px-3 py-1 rounded border bg-white"
+                >
+                  −
+                </button>
+                <Input
+                  value={String(increaseBy)}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value || "0", 10);
+                    setIncreaseBy(Number.isNaN(v) ? 0 : Math.max(0, v));
+                  }}
+                  className="w-28 text-center"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIncreaseBy((v) => v + 1)}
+                  className="px-3 py-1 rounded border bg-white"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Decrease By</div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDecreaseBy((v) => Math.max(0, v - 1))}
+                  className="px-3 py-1 rounded border bg-white"
+                >
+                  −
+                </button>
+                <Input
+                  value={String(decreaseBy)}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value || "0", 10);
+                    setDecreaseBy(Number.isNaN(v) ? 0 : Math.max(0, v));
+                  }}
+                  className="w-28 text-center"
+                />
+                <button
+                  type="button"
+                  onClick={() => setDecreaseBy((v) => v + 1)}
+                  className="px-3 py-1 rounded border bg-white"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div>
