@@ -22,6 +22,7 @@ interface Adjustment {
   adjustmentNumber: string;
   warehouseId: number;
   productId: number;
+  productSku?: string;
   countedQuantity: number;
   systemQuantity: number;
   difference: number;
@@ -121,7 +122,7 @@ export default function AdjustmentsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Adjustment #</TableHead>
-                  <TableHead>Product ID</TableHead>
+                  <TableHead>Product SKU</TableHead>
                   <TableHead>System Qty</TableHead>
                   <TableHead>Counted Qty</TableHead>
                   <TableHead>Difference</TableHead>
@@ -134,7 +135,7 @@ export default function AdjustmentsPage() {
                 {adjustments.map((adjustment) => (
                   <TableRow key={adjustment.id}>
                     <TableCell className="font-medium">{adjustment.adjustmentNumber}</TableCell>
-                    <TableCell>#{adjustment.productId}</TableCell>
+                    <TableCell>{adjustment.productSku ?? `#${adjustment.productId}`}</TableCell>
                     <TableCell>{adjustment.systemQuantity}</TableCell>
                     <TableCell>{adjustment.countedQuantity}</TableCell>
                     <TableCell>

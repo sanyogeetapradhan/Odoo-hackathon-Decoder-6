@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { adjustments, productStock } from '@/db/schema';
+import { adjustments, productStock, products } from '@/db/schema';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -20,7 +20,23 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
 
-    let query = db.select().from(adjustments);
+    let query = db
+      .select({
+        id: adjustments.id,
+        adjustmentNumber: adjustments.adjustmentNumber,
+        warehouseId: adjustments.warehouseId,
+        productId: adjustments.productId,
+        productSku: products.sku,
+        countedQuantity: adjustments.countedQuantity,
+        systemQuantity: adjustments.systemQuantity,
+        difference: adjustments.difference,
+        reason: adjustments.reason,
+        status: adjustments.status,
+        createdAt: adjustments.createdAt,
+        validatedAt: adjustments.validatedAt,
+      })
+      .from(adjustments)
+      .leftJoin(products, eq(adjustments.productId, products.id));
 
     const conditions = [];
 
