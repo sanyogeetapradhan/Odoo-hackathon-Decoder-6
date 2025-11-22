@@ -374,9 +374,9 @@ export default function NewDeliveryPage() {
                       const v = e.target.value;
                       updateItem(idx, { quantity: v });
                       const parsed = parseInt(v);
-                      if (!isNaN(parsed) && it.totalQty != null) {
-                        if (parsed > it.totalQty) {
-                          updateItem(idx, { error: `Requested qty (${parsed}) exceeds available (${it.totalQty})` });
+                      if (!isNaN(parsed) && it.availableQty != null) {
+                        if (parsed > it.availableQty) {
+                          updateItem(idx, { error: `Requested qty (${parsed}) exceeds available (${it.availableQty})` });
                         } else {
                           updateItem(idx, { error: null });
                         }
@@ -392,7 +392,7 @@ export default function NewDeliveryPage() {
                   <div className="text-sm">Price: <span className="font-medium">{it.unitPrice != null && it.unitPrice !== '' ? it.unitPrice : '—'}</span></div>
                 </div>
                 <div className="w-32">
-                  <div className="text-sm">In Stock: <span className="font-medium">{it.totalQty != null ? String(it.totalQty) : '—'}</span></div>
+                  <div className="text-sm">In Stock: <span className="font-medium">{it.availableQty != null ? String(it.availableQty) : '—'}</span></div>
                 </div>
                 <div className="w-36">
                   <div className="text-sm">Line total: <span className="font-medium">{(Number(it.unitPrice || 0) * Number(it.quantity || 0)).toFixed(2)}</span></div>
