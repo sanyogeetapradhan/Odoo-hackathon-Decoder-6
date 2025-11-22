@@ -147,21 +147,6 @@ export default function DeliveryDetailPage() {
           <p className="text-muted-foreground">Customer: {delivery.customerName}</p>
           <p className="text-muted-foreground">Status: {delivery.status}</p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild>
-            <Link href="/deliveries">Back</Link>
-          </Button>
-          {delivery && delivery.status !== 'done' && delivery.status !== 'cancelled' && (
-            <>
-              <Button onClick={handleConfirm} disabled={isProcessing}>
-                {isProcessing ? 'Processing…' : 'Confirm'}
-              </Button>
-              <Button variant="destructive" onClick={handleDiscard} disabled={isProcessing}>
-                {isProcessing ? 'Processing…' : 'Discard'}
-              </Button>
-            </>
-          )}
-        </div>
       </div>
 
       <Card>
@@ -212,6 +197,22 @@ export default function DeliveryDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <div className="mt-4 flex justify-end gap-2">
+        <Button asChild>
+          <Link href="/deliveries">Back</Link>
+        </Button>
+        {delivery && delivery.status !== 'done' && delivery.status !== 'cancelled' && (
+          <>
+            <Button onClick={handleConfirm} disabled={isProcessing}>
+              {isProcessing ? 'Processing…' : 'Confirm'}
+            </Button>
+            <Button variant="destructive" onClick={handleDiscard} disabled={isProcessing}>
+              {isProcessing ? 'Processing…' : 'Discard'}
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
